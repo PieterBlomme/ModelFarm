@@ -22,11 +22,11 @@ def get_or_create_key_pair(client: boto3.client, key_path: Path):
         else:
             raise
 
-def get_or_create_security_group(client: boto3.client, instance_name: str):
+def get_or_create_security_group(client: boto3.client, group_name: str):
     try:
-        return client.create_security_group(GroupName=instance_name, Description=instance_name)
+        return client.create_security_group(GroupName=group_name, Description=group_name)
     except botocore.exceptions.ClientError as e:
         if "InvalidGroup.Duplicate" in str((e)):
-            return client.describe_security_groups(Filters=[{'Name':'group-name','Values':[instance_name]}])['SecurityGroups'][0]
+            return client.describe_security_groups(Filters=[{'Name':'group-name','Values':[group_name]}])['SecurityGroups'][0]
         else:
             raise

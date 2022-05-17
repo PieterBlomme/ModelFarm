@@ -1,69 +1,68 @@
 
 import boto3
 import logging
-from pathlib import Path
-from .iam import get_or_create_key_pair, get_or_create_security_group
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
     
+@dataclass
 class EC2SpotInstance:
+    instance_id: str
+    spot_instance_request_id: str
 
     @classmethod
-    def get_or_create_spot_instance(self,
-        region_name: str,
-        instance_name: str,
-        keypair_directory: str = '.keys',
+    def create_spot_instance(self,
+        client: boto3.client,
+        key_name: str,
+        security_group: Any,
         instance_type: str = 't2.micro'):
         image_id: str = "ami-0a30c0b8286217815"
         max_price: float = 0.0116
-        """
-        Interact with AWS EC2 Spot Instances.  
-        """
-        #Create a boto3 client to connect to ec2
-        client = boto3.client('ec2', region_name=region_name)
 
-        # create an IAM key pair
-        # TODO what if exists
-        key_path = Path(keypair_directory, instance_name + '.pem')
-        logger.info(f'KeyPair will be saved to {key_path}')
-        get_or_create_key_pair(client, key_path)
+        logger.info('Creating new spot request')
+        response = client.run_instances(
+            ImageId=image_id,
+            InstanceType=instance_type,
+            MinCount=1, 
+            MaxCount=1,
+            KeyName=key_name,
+            DryRun=False,
+            SecurityGroupIds= [
+                security_group["GroupId"],
+            ],
+            InstanceMarketOptions={
+                'MarketType': 'spot',
+                'SpotOptions': {
+                    'MaxPrice': str(max_price),
+                    'SpotInstanceType': 'one-time',
+                    'InstanceInterruptionBehavior': 'terminate'
+                }
+            }
+        )["Instances"]
+        logger.info(f"Creation response: {response}")
+        instance_id = response[0]['InstanceId']
+        spot_instance_request_id = response[0]["SpotInstanceRequestId"]
+        return EC2SpotInstance(instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
 
-        # get security group
-        security_group = get_or_create_security_group(client, instance_name)
-        logger.info(security_group)
+    @classmethod
+    def get_spot_instance(self,
+        client: boto3.client,
+        spot_instance_request_id: str):
 
         # find existing instances
-        ec2_reservations = client.describe_instances()["Reservations"]
-        existing_ec2_instances = []
-        for reservation in ec2_reservations:
-            for instance in reservation["Instances"]:
-                if instance["KeyName"] == instance_name + '.pem':
-                    existing_ec2_instances.append(instance)
+        spot_instance_requests = client.describe_spot_instance_requests(Filters=[{'Name':'spot-instance-request-id', 'Values':[spot_instance_request_id]}])["SpotInstanceRequests"]
+        logger.info(f"Spot instance requests: {spot_instance_requests}")
+        for request in spot_instance_requests:
+            if request["SpotInstanceRequestId"] == spot_instance_request_id:
+                instance_id = request['InstanceId']
+                spot_instance_request_id = request["SpotInstanceRequestId"]
+                return EC2SpotInstance(instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
 
-        if existing_ec2_instances:
-            logger.info('Existing spot request found')
-            instance_id = existing_ec2_instances[0]['InstanceId']
-        else:
-            logger.info('Creating new spot request')
-            response = client.run_instances(
-                ImageId=image_id,
-                InstanceType=instance_type,
-                MinCount=1, 
-                MaxCount=1,
-                KeyName=instance_name + '.pem',
-                DryRun=False,
-                SecurityGroupIds= [
-                    security_group["GroupId"],
-                ],
-                InstanceMarketOptions={
-                    'MarketType': 'spot',
-                    'SpotOptions': {
-                        'MaxPrice': str(max_price),
-                        'SpotInstanceType': 'one-time',
-                        'InstanceInterruptionBehavior': 'terminate'
-                    }
-                }
-            )
-            instance_id = response['Instances'][0]['InstanceId']
+        raise Exception(f'Instance {spot_instance_request_id} not found')
 
-        logger.info(f'Spot instance ID: {instance_id}')
+    def terminate(self, client: boto3.client):
+        response = client.cancel_spot_instance_requests(SpotInstanceRequestIds=[self.spot_instance_request_id])
+        logger.info(f"Cancel response: {response}")
+        response = client.terminate_instances(InstanceIds=[self.instance_id])
+        logger.info(f"Termination response: {response}")
