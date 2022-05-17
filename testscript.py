@@ -32,6 +32,8 @@ try:
             logger.info("Instance running")
             break
         time.sleep(10)
+    
+    instance.run_script(key_file=Path(f"./.keys/{key_name}"), script_path="./test.sh")
 finally:
     instance.terminate()
     logger.info("Spot instance terminated")
