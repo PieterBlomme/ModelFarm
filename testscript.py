@@ -14,7 +14,7 @@ client = boto3.client('ec2', region_name=region_name)
 
 key_name = 'ec2-spot.pem'
 key_pair = get_or_create_key_pair(client, Path(f"./.keys/{key_name}"))
-security_group = get_or_create_security_group(client, "ec2-spot-sg")
+security_group = get_or_create_security_group(client, "ec2-spot-sg4")
 
 instance = EC2SpotInstance.create_spot_instance(client, key_name=key_name, security_group=security_group)
 logger.info(f"Spot instance: {instance}")
@@ -35,5 +35,6 @@ try:
     
     instance.run_script(key_file=Path(f"./.keys/{key_name}"), script_path="./test.sh")
 finally:
-    instance.terminate()
-    logger.info("Spot instance terminated")
+    pass
+    #instance.terminate()
+    #logger.info("Spot instance terminated")

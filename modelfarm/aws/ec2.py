@@ -59,7 +59,7 @@ class EC2SpotInstance:
         spot_instance_request_id: str):
 
         # find existing instances
-        spot_instance_requests = client.describe_spot_instance_requests()["SpotInstanceRequests"]
+        spot_instance_requests = client.describe_spot_instance_requests(Filters=[{'Name':'spot-instance-request-id', 'Values':[spot_instance_request_id]}])["SpotInstanceRequests"]
         logger.info(f"Spot instance requests: {spot_instance_requests}")
         for request in spot_instance_requests:
             if request["SpotInstanceRequestId"] == spot_instance_request_id:
@@ -83,16 +83,17 @@ class EC2SpotInstance:
         if response['InstanceStatuses'][0]["InstanceStatus"]["Status"] == "initializing":
             return InstanceStatus.INITIALIZING
         elif response['InstanceStatuses'][0]["InstanceStatus"]["Status"] == "ok":
-            return InstanceStatus.INITIALIZING
+            return InstanceStatus.RUNNING
         else:
             logger.info(response)
             raise Exception(f"Unexpected instance status: {response}")
 
     def _connect_to_instance(self, ip, key_file, username='ubuntu', port=22, timeout=10):
-        
-        ssh_client = paramiko.SSHClient()                                          # Instantiate the SSH Client
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)             # Policy for automatically adding the hostname and new host key to the local `.HostKeys` object, and saving it. 
-        k = paramiko.RSAKey.from_private_key_file(key_file)                  # Create an RSA key from the key file to avoid runtime 
+        logger.info(f"Paramiko connection with key_file {key_file} and ip {ip}")
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+        k = paramiko.RSAKey.from_private_key_file(str(key_file))
+        logger.info(f"Paramiko RSAKey {k}")
 
         retries = 0 
         connected = False 
