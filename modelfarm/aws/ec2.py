@@ -12,68 +12,11 @@ class InstanceStatus(Enum):
     NONE = 1
     INITIALIZING = 2
     RUNNING = 3
-class EC2SpotInstance:
 
-    def __init__(self, client: boto3.client, instance_id: str, spot_instance_request_id: str):
+class BaseInstance:
+    def __init__(self, client: boto3.client, instance_id: str):
         self._client = client
         self.instance_id = instance_id
-        self.spot_instance_request_id = spot_instance_request_id
-
-    @classmethod
-    def create_spot_instance(self,
-        client: boto3.client,
-        key_name: str,
-        security_group: Any,
-        instance_type: str = 't2.micro'):
-        image_id: str = "ami-0a30c0b8286217815"
-        max_price: float = 0.0116
-
-        logger.info('Creating new spot request')
-        response = client.run_instances(
-            ImageId=image_id,
-            InstanceType=instance_type,
-            MinCount=1, 
-            MaxCount=1,
-            KeyName=key_name,
-            DryRun=False,
-            SecurityGroupIds= [
-                security_group["GroupId"],
-            ],
-            InstanceMarketOptions={
-                'MarketType': 'spot',
-                'SpotOptions': {
-                    'MaxPrice': str(max_price),
-                    'SpotInstanceType': 'one-time',
-                    'InstanceInterruptionBehavior': 'terminate'
-                }
-            }
-        )["Instances"]
-        logger.info(f"Creation response: {response}")
-        instance_id = response[0]['InstanceId']
-        spot_instance_request_id = response[0]["SpotInstanceRequestId"]
-        return EC2SpotInstance(client=client, instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
-
-    @classmethod
-    def get_spot_instance(self,
-        client: boto3.client,
-        spot_instance_request_id: str):
-
-        # find existing instances
-        spot_instance_requests = client.describe_spot_instance_requests(Filters=[{'Name':'spot-instance-request-id', 'Values':[spot_instance_request_id]}])["SpotInstanceRequests"]
-        logger.info(f"Spot instance requests: {spot_instance_requests}")
-        for request in spot_instance_requests:
-            if request["SpotInstanceRequestId"] == spot_instance_request_id:
-                instance_id = request['InstanceId']
-                spot_instance_request_id = request["SpotInstanceRequestId"]
-                return EC2SpotInstance(client=client, instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
-
-        raise Exception(f'Spot request {spot_instance_request_id} not found')
-
-    def terminate(self):
-        response = self._client.cancel_spot_instance_requests(SpotInstanceRequestIds=[self.spot_instance_request_id])
-        logger.info(f"Cancel response: {response}")
-        response = self._client.terminate_instances(InstanceIds=[self.instance_id])
-        logger.info(f"Termination response: {response}")
 
     def status(self): 
         response = self._client.describe_instance_status(InstanceIds=[self.instance_id])
@@ -121,5 +64,114 @@ class EC2SpotInstance:
             logger.info(line)
         ssh_client.close()
 
+    def terminate(self):
+        response = self._client.terminate_instances(InstanceIds=[self.instance_id])
+        logger.info(f"Termination response: {response}")
+        
+class EC2SpotInstance(BaseInstance):
+
+    def __init__(self, client: boto3.client, instance_id: str, spot_instance_request_id: str):
+        super().__init__(client=client, instance_id=instance_id)
+        self.spot_instance_request_id = spot_instance_request_id
+
+    @classmethod
+    def create_spot_instance(self,
+        client: boto3.client,
+        key_name: str,
+        security_group: Any,
+        instance_type: str = 't2.micro',
+        image_id: str = "ami-0a30c0b8286217815",
+        max_price: float = 0.0116):
+
+        logger.info('Creating new spot request')
+        response = client.run_instances(
+            ImageId=image_id,
+            InstanceType=instance_type,
+            MinCount=1, 
+            MaxCount=1,
+            KeyName=key_name,
+            DryRun=False,
+            SecurityGroupIds= [
+                security_group["GroupId"],
+            ],
+            InstanceMarketOptions={
+                'MarketType': 'spot',
+                'SpotOptions': {
+                    'MaxPrice': str(max_price),
+                    'SpotInstanceType': 'one-time',
+                    'InstanceInterruptionBehavior': 'terminate'
+                }
+            }
+        )["Instances"]
+        logger.info(f"Creation response: {response}")
+        instance_id = response[0]['InstanceId']
+        spot_instance_request_id = response[0]["SpotInstanceRequestId"]
+        return EC2SpotInstance(client=client, instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
+
+    @classmethod
+    def get_spot_instance(self,
+        client: boto3.client,
+        spot_instance_request_id: str):
+
+        # find existing instances
+        spot_instance_requests = client.describe_spot_instance_requests(Filters=[{'Name':'spot-instance-request-id', 'Values':[spot_instance_request_id]}])["SpotInstanceRequests"]
+        logger.info(f"Spot instance requests: {spot_instance_requests}")
+        for request in spot_instance_requests:
+            if request["SpotInstanceRequestId"] == spot_instance_request_id:
+                instance_id = request['InstanceId']
+                spot_instance_request_id = request["SpotInstanceRequestId"]
+                return EC2SpotInstance(client=client, instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
+
+        raise Exception(f'Spot request {spot_instance_request_id} not found')
+
+    def terminate(self):
+        response = self._client.cancel_spot_instance_requests(SpotInstanceRequestIds=[self.spot_instance_request_id])
+        logger.info(f"Cancel response: {response}")
+        super().terminate()
+
     def __str__(self):
         return f"EC2SpotInstance(instance_id={self.instance_id}, spot_instance_request_id={self.spot_instance_request_id}"
+
+class EC2Instance(BaseInstance):
+
+    @classmethod
+    def create_instance(self,
+        client: boto3.client,
+        key_name: str,
+        security_group: Any,
+        instance_type: str = 't2.micro',
+        image_id: str = "ami-0a30c0b8286217815"):
+
+        logger.info('Creating new request')
+        response = client.run_instances(
+            ImageId=image_id,
+            InstanceType=instance_type,
+            MinCount=1, 
+            MaxCount=1,
+            KeyName=key_name,
+            DryRun=False,
+            SecurityGroupIds= [
+                security_group["GroupId"],
+            ],
+        )["Instances"]
+        logger.info(f"Creation response: {response}")
+        instance_id = response[0]['InstanceId']
+        return EC2Instance(client=client, instance_id=instance_id)
+
+    @classmethod
+    def get_instance(self,
+        client: boto3.client,
+        instance_id: str):
+
+        # find existing instances
+        try:
+            response = client.describe_instances(InstanceIds=[instance_id])['Reservations'][0]['Instances'][0]
+            logger.info(f"Instances requests: {response}")
+            return EC2Instance(client=client, instance_id=response["InstanceId"])
+        except Exception as e:
+            logger.exception(e)
+            raise Exception(f'Instance {instance_id} not found')
+
+
+    def __str__(self):
+        return f"EC2Instance(instance_id={self.instance_id}"

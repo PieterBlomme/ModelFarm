@@ -2,7 +2,7 @@ import logging
 import boto3
 import time
 from pathlib import Path
-from modelfarm.aws.ec2 import EC2SpotInstance, InstanceStatus
+from modelfarm.aws.ec2 import EC2Instance, InstanceStatus
 from modelfarm.aws.iam import get_or_create_key_pair, get_or_create_security_group
 logging.basicConfig(level="INFO")
 
@@ -16,13 +16,13 @@ key_name = 'ec2-spot.pem'
 key_pair = get_or_create_key_pair(client, Path(f"./.keys/{key_name}"))
 security_group = get_or_create_security_group(client, "ec2-spot-sg4")
 
-instance = EC2SpotInstance.create_spot_instance(client, key_name=key_name, security_group=security_group)
+instance = EC2Instance.create_instance(client, key_name=key_name, security_group=security_group, instance_type="p2.xlarge")
 logger.info(f"Spot instance: {instance}")
 
 try:
     time.sleep(5)
 
-    instance = EC2SpotInstance.get_spot_instance(client, spot_instance_request_id=instance.spot_instance_request_id)
+    instance = EC2Instance.get_instance(client, instance_id=instance.instance_id)
     logger.info("Spot instance retrieved")
 
     while True:
@@ -35,5 +35,6 @@ try:
     
     instance.run_script(key_file=Path(f"./.keys/{key_name}"), script_path="./test.sh")
 finally:
+    pass
     instance.terminate()
     logger.info("Spot instance terminated")
