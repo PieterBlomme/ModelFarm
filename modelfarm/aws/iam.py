@@ -77,7 +77,7 @@ def get_or_create_security_group(client: boto3.client, group_name: str, enable_n
                                                         'ToPort': firewall_ingress_settings[2],
                                                         }
                                                 ])
-        return security_group
+        return client.describe_security_groups(Filters=[{'Name':'group-name','Values':[group_name]}])['SecurityGroups'][0]
     except botocore.exceptions.ClientError as e:
         if "InvalidGroup.Duplicate" in str((e)):
             return client.describe_security_groups(Filters=[{'Name':'group-name','Values':[group_name]}])['SecurityGroups'][0]
