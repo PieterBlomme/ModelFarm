@@ -75,7 +75,7 @@ class EC2SpotInstance(BaseInstance):
         self.spot_instance_request_id = spot_instance_request_id
 
     @classmethod
-    def create_spot_instance(self,
+    def create_instance(self,
         client: boto3.client,
         key_name: str,
         security_group: Any,
@@ -109,7 +109,7 @@ class EC2SpotInstance(BaseInstance):
         return EC2SpotInstance(client=client, instance_id=instance_id, spot_instance_request_id=spot_instance_request_id)
 
     @classmethod
-    def get_spot_instance(self,
+    def get_instance(self,
         client: boto3.client,
         spot_instance_request_id: str):
 
