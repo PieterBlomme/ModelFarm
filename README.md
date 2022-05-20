@@ -1,3 +1,9 @@
+<p align="center">
+    <a href="https://github.com/PieterBlomme/ModelFarm/actions/workflows/main.yml">
+        <img src="https://github.com/PieterBlomme/ModelFarm/actions/workflows/main.yml/badge.svg">
+    </a>
+</p>
+
 # 💡ModelFarm
 
 An open-source python library to train deep learning models on Amazon EC2 Spot Instances (regular EC2 instances are also supported).  
