@@ -36,7 +36,6 @@ class BaseInstance:
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
         k = paramiko.RSAKey.from_private_key_file(str(key_file))
-        logger.info(f"Paramiko RSAKey {k}")
 
         retries = 0 
         connected = False 
@@ -63,6 +62,14 @@ class BaseInstance:
         for line in out:
             logger.info(line)
         ssh_client.close()
+
+    def download_file(self, key_file, source_path, target_path):
+        response = self._client.describe_instances(InstanceIds=[self.instance_id])['Reservations'][0]['Instances'][0]
+        public_ip_address = response["PublicIpAddress"]
+        ssh_client = self._connect_to_instance(public_ip_address, key_file)
+
+        sftp = ssh_client.open_sftp()
+        sftp.get(source_path, target_path)
 
     def terminate(self):
         response = self._client.terminate_instances(InstanceIds=[self.instance_id])
